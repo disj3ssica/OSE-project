@@ -1,7 +1,8 @@
 # Working title: Constrained optimization of the synthetic control method with application to the Economic Costs of Organized Crime (Pinotti, 2015)
 ###### Authors: Cremonese J., Syed M.D., Wang X.
 
-This repository contains our final replication project of [The Economic Costs of Organised Crime: Evidence from Southern Italy](https://onlinelibrary.wiley.com/doi/abs/10.1111/ecoj.12235) (Pinotti, 2015) for the OSE Scientific Computing class (Winter semester 2021/2022) at Bonn University.
+This repository contains our replication project of [The Economic Costs of Organised Crime: Evidence from Southern Italy](https://onlinelibrary.wiley.com/doi/abs/10.1111/ecoj.12235) (Pinotti, 2015) for the OSE Scientific Computing class at Bonn University held during the Winter Semester 2021-2022. <br>
+Authors: Jessica Cremonese, Muhammad-Danial Syed, Xue Wang.
 
 ## The Economic Costs of Organised Crime (Pinotti, 2015)
 ***> brief summary***
