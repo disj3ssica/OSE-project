@@ -29,6 +29,7 @@ Authors: Jessica Cremonese, Muhammad-Danial Syed, Xue Wang.
 
 ## References
 
-
 ## Acknowledgements
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/disj3ssica/OSE-project/blob/main/LICENSE) 
+</a> 
