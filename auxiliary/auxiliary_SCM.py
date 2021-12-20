@@ -69,3 +69,50 @@ def cvxpy_solution():
                            'Weights': np.round(w_basic.T[0], decimals=3)})
 
     display(solution_frame_1)
+
+    #### Graphical Comparison
+
+def dynamic_graph():
+
+    w_pinotti = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.6244443, 0.3755557, 0]).reshape(15, 1)
+    w_becker = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.4303541, 0.4893414, 0.0803045]).reshape(15,1)
+
+    y_synth_pinotti = w_pinotti.T @ y_control_all
+    y_synth_becker = w_becker.T @ y_control_all
+    y_synth_basic = w_basic.T @ y_control_all
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=list(data.year.unique()), y=y_synth_basic[0],
+                    mode='lines', name='Optimizer'))
+    fig.add_trace(go.Scatter(x=list(data.year.unique()), y=y_synth_pinotti[0],
+                    mode='lines', name='Pinotti'))
+    fig.add_trace(go.Scatter(x=list(data.year.unique()), y=y_synth_becker[0],
+                    mode='lines', name='Becker and Klößner'))
+    fig.add_trace(go.Scatter(x=list(data.year.unique()), y=y_treat_all[0],
+                    mode='lines', name='Treated unit'))
+
+    fig.add_shape(dict(type="line", x0=1960, y0=0, x1=1960, y1=11000,
+                   line=dict(color="Black", width=1)))
+
+    fig.add_shape(dict(type="line", x0=1974, y0=0, x1=1974, y1=11000,
+                   line=dict(color="Black", width=1)))
+
+    fig.add_shape(dict(type="line", x0=1980, y0=0, x1=1980, y1=11000,
+                   line=dict(color="Black", width=1)))
+
+    fig.add_trace(go.Scatter(x=[1960], y=[12000], mode="text",
+         name="Matching", text=["End of Matching<br>Period"]))
+  
+    fig.add_trace(go.Scatter(x=[1974], y=[12000], mode="text",
+         name="Event 1", text=["Drug<br>Smuggling"]))
+
+    fig.add_trace(go.Scatter(x=[1981], y=[12000], mode="text",
+         name="Event 2", text=["Basilicata<br>Earthquake"]))
+
+    fig.update_layout(title='Figure 3.1: Synthetic Control Optimizer vs. Treated unit',
+                   xaxis_title='Time', yaxis_title='GDP per Capita')
+
+    # Dynamic graph
+    fig.show()
+    
+ 
