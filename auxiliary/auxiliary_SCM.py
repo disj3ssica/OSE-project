@@ -115,4 +115,84 @@ def dynamic_graph():
     # Dynamic graph
     fig.show()
     
+    
+ def RMSPE_compare1():
+    # Function to obtain Root Mean Squared Prediction Error 
+    def RMSPE(w):
+        return np.sqrt(np.mean((Z1 - Z0 @ w)**2))
+    
+# Dataframe to compare RMSPE values
+    RMSPE_values = [RMSPE(w_basic), RMSPE(w_pinotti), RMSPE(w_becker)]
+    method = ['RMSPE CVXPY','RMSPE Pinotti','RMSPE Becker']
+    RMSPE_compare = pd.DataFrame({'Outcome':RMSPE_values}, index=method)
+    display(RMSPE_compare)
+    
+    
+# Dataframe to show predicted vs actual values of variables.
+def data_compare():
+    
+    x_pred_pinotti = (X0 @ w_pinotti)
+    x_pred_basic = (X0 @ w_basic)
+
+    pred_error_pinotti = x_pred_pinotti - X1
+    pred_error_basic = x_pred_basic - X1
+
+    data_compare = pd.DataFrame({'Observed':X1.T[0],
+                             'Pinotti Predicted':x_pred_pinotti.T[0],
+                             'Optimizer Predicted':x_pred_basic.T[0],
+                             'Pinotti Differential': pred_error_pinotti.T[0],
+                             'Optimizer Differential': pred_error_basic.T[0]},
+                              index= data.columns[[3,16,11,12,13,14,26,28]])
+
+#print ('\nBreakdown across predictors:')
+
+    display(data_compare)
+
+#print('\nRMSPE CVXPY: {} \nRMSPE Pinotti: {} \nRMSPE Becker: {}'\
+#      .format(RMSPE(w_basic),RMSPE(w_pinotti),RMSPE(w_becker)))
+
+
+def best_weights():
+
+
+    n = 100000            # Number of iterations: set to 100000
+
+    iteration_2 = []
+
+# Function to run in parallel 
+    ## use Parallel() to save time
+    ## n_jobs=-1 -> all CPU used
+    ## delayed(f)(x) for x in list(range(1,n+1))  -> computes function f in parallel, for var x from 1 to n+1
+    def f(x):
+    
+        np.random.seed(x)
+        v_diag  = np.random.dirichlet(np.ones(8), size=1)
+        w_cvxpy = w_optimize(v_diag)[0]
+        print(w_cvxpy.shape)
+        prediction_error =  RMSPE(w_cvxpy) 
+        output_vec = [prediction_error, v_diag, w_cvxpy]
+
+        return output_vec
+    
+    iteration_2 = Parallel(n_jobs=-1)(delayed(f)(x) for x in list(range(1,n+1)))
+
+# Organize output into dataframe
+    solution_frame_2 = pd.DataFrame(iteration_2)
+    solution_frame_2.columns =['Error', 'Relative Importance', 'Weights']
+
+    solution_frame_2 = solution_frame_2.sort_values(by='Error', ascending=True)
+
+    w_cvxpy = solution_frame_2.iloc[0][2]
+    v_cvxpy = solution_frame_2.iloc[0][1][0]
+
+    best_weights_region = pd.DataFrame({'Region':control_units.region.unique(),
+                                    'W(V*)': np.round(w_cvxpy.ravel(), decimals=3)})
+
+    best_weights_importance = pd.DataFrame({'Predictors': data.columns[[3,16,11,12,13,14,26,28]],
+                                        'V*': np.round(v_cvxpy, 3)})
+
+    display(best_weights_region)
+    display(best_weights_importance)
+#display(best_weights_importance)
+#display(best_weights_region)
  
