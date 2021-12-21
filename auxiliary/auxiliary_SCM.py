@@ -33,6 +33,8 @@ def data_prep():
 
     # k x 1 vector: mean values of k predictors for 1 treated unit
     X1 = X.loc[(X.index == 21),(predictor_variables)]
+    
+    
     X1 = X1.groupby(X1.index).mean().values.T
     
     return (X0,X1)
@@ -275,3 +277,146 @@ def RMSPE_compare2():
 
 #print('\nRMSPE CVXPY: {} \nRMSPE scipy: {} \nRMSPE Pinotti: {}'\
 #      .format(RMSPE(w_cvxpy),RMSPE(w_scipy),RMSPE(w_pinotti)))
+
+
+def data_prep(data,unit_identifier,time_identifier,matching_period,treat_unit,control_units,outcome_variable,
+              predictor_variables):
+    
+    X = data.loc[data[time_identifier].isin(matching_period)]
+    X.index = X.loc[:,unit_identifier]
+    
+    X0 = X.loc[(X.index.isin(control_units)),(predictor_variables)] 
+    X0 = X0.groupby(X0.index).mean().values.T
+    
+    X1 = X.loc[(X.index == treat_unit),(predictor_variables)]
+    X1 = X1.groupby(X1.index).mean().values.T
+
+    Z0 = np.array(X.loc[(X.index.isin(control_units)),(outcome_variable)]).reshape(len(control_units),len(matching_period)).T
+    Z1 = np.array(X.loc[(X.index == treat_unit),(outcome_variable)]).reshape(len(matching_period),1)
+    
+    return X0, X1, Z0, Z1
+
+# Function to avoid re-writing code during sensitivity analysis.
+def SCM(data,unit_identifier,time_identifier,matching_period,treat_unit,control_units,outcome_variable,
+              predictor_variables,reps = 1):
+    
+       
+       
+    def w_optimize(v):
+
+        W = cp.Variable((len(control_units), 1), nonneg=True)
+        objective_function    = cp.Minimize(cp.norm(cp.multiply(v, X1 - X0 @ W)))
+        objective_constraints = [cp.sum(W) == 1]
+        objective_solution    = cp.Problem(objective_function, objective_constraints).solve(verbose=False)
+        return (W.value)
+    
+    def vmin(v):
+
+        v = v.reshape(len(predictor_variables),1)
+        W = w_optimize(v)
+        return ((Z1 - Z0 @ W).T @ (Z1 - Z0 @ W)).ravel()
+
+    def constr_f(v):
+        return float(np.sum(v))
+
+    def constr_hess(x,v):
+        v=len(predictor_variables)
+        return np.zeros([v,v])
+
+    def constr_jac(v):
+        v=len(predictor_variables)
+        return np.ones(v)
+
+    def RMSPE_f(w):
+        return np.sqrt(np.mean((w.T @ Z0.T - Z1.T)**2))
+    
+    def v_optimize(i):
+    
+        bounds  = [(0,1)]*len(predictor_variables)
+        nlc     = NonlinearConstraint(constr_f, 1, 1, constr_jac, constr_hess)
+        result  = differential_evolution(vmin, bounds, constraints=(nlc),seed=i,tol=0.01)
+        v_estim = result.x.reshape(len(predictor_variables),1)  
+        return (v_estim)
+    
+    def h(x):
+    
+        v_estim1 = v_optimize(x)
+        w_estim1 = w_optimize(v_estim1)
+        prediction_error = RMSPE_f(w_estim1)
+        output_vec = [prediction_error, v_estim1, w_estim1]
+        return output_vec
+
+    iterations = []
+    iterations = Parallel(n_jobs=-1)(delayed(h)(x) for x in list(range(1,reps+1)))
+      
+    solution_frame = pd.DataFrame(iterations)
+    solution_frame.columns =['Error', 'Relative Importance', 'Weights']
+    solution_frame = solution_frame.sort_values(by='Error', ascending=True)
+
+    w_nested = solution_frame.iloc[0][2]
+    v_nested = solution_frame.iloc[0][1].T[0]
+    
+    output = [solution_frame,w_nested,v_nested,RMSPE_f(w_nested)]
+    
+    return output
+
+def nested():
+  
+    reps = 1
+    treat_unit = 21
+    unit_identifier  = 'reg'
+    time_identifier  = 'year'
+    matching_period  = list(range(1951, 1961))
+    control_units    = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 20]
+    outcome_variable = ['gdppercap']
+    entire_period    = list(range(1951, 2008))
+    predictor_variables = ['gdppercap', 'invrate', 'shvain', 'shvaag', 'shvams', 'shvanms', 'shskill', 'density']
+
+    data_preparation(data,unit_identifier,time_identifier,matching_period,treat_unit,control_units,outcome_variable,
+              predictor_variables)
+    
+    output_object = SCM(data,unit_identifier,time_identifier,matching_period,treat_unit,
+                    control_units,outcome_variable,predictor_variables,reps)
+
+    # Organize output into dataframe
+    solution_frame_4 = output_object[0]
+    w_nested = output_object[1]
+    v_nested = output_object[2]
+    control_units = data[(data.reg <= 14) | (data.reg ==20)]
+
+    best_weights_region3 = pd.DataFrame({'Region':control_units.region.unique(), 
+                                    'W(V*)': np.round(w_nested.ravel(), decimals=3)})
+
+    best_weights_importance3 = pd.DataFrame({'Predictors': data.columns[[3,16,11,12,13,14,26,28]],
+                                        'V*': np.round(v_nested, 3)})
+
+    #display(best_weights_importance3)
+    #display(best_weights_region3)
+
+    print('\nOptimizer Weights: {} \nPaper Weights:  {}'\
+      .format(np.round(w_nested.T,3), np.round(w_pinotti,3).T))
+
+
+    print('\nRMSPE Nested:    {} \nRMSPE Pinotti:   {}'\
+      .format(np.round(RMSPE(w_nested),5), np.round(RMSPE(w_pinotti),5)))
+
+def unrestricted():
+    
+    W = cp.Variable((15, 1), nonneg=True)
+    objective_function    = cp.Minimize(np.mean(cp.norm(Z1 - Z0 @ W)))
+    objective_constraints = [cp.sum(W) == 1]
+    objective_solution    = cp.Problem(objective_function, objective_constraints).solve(verbose=False)
+
+    V = cp.Variable((8, 1), nonneg=True)
+    objective_function    = cp.Minimize(cp.norm(cp.multiply(V, X1 - X0 @ W.value)))
+    objective_constraints = [cp.sum(V) == 1]
+    objective_solution    = cp.Problem(objective_function, objective_constraints).solve(verbose=False)
+
+    v_global = V.value.ravel()
+    w_global = W.value
+
+    print('\nOptimizer Weights: {} \nOptimal Weights:  {}'\
+      .format(np.round(w_global.T,5), np.round(w_becker,5).T))
+
+    print('\nRMSPE Global:   {} \nRMSPE Becker:    {}'\
+      .format(np.round(RMSPE(w_global),6), np.round(RMSPE(w_becker),6)))
