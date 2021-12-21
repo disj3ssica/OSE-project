@@ -196,3 +196,82 @@ def best_weights():
 #display(best_weights_importance)
 #display(best_weights_region)
  
+def RMSPE_compare2():
+    A = X0
+    b = X1.ravel()  ## .ravel() returns continuous flattened array [[a,b],[c,d]]->[a,b,c,d]
+    iteration_3 = []
+    init_w = [0]*15
+
+    bnds = ((0, 1),)*15
+    cons = ({'type': 'eq', 'fun': lambda x: 1.0 -  np.sum(x) })   ## constraint
+
+    def fmin(x,A,b,v):         ## function we want to min
+        c = np.dot(A, x) - b   ## np.dot(a,b) multiplies a and b => X0*x - X1
+        d = c ** 2
+        y = np.multiply(v,d)   ## y = v * (X0*x - X1)^2
+        return np.sum(y)
+
+    def g(x):
+    
+        np.random.seed(x)    ## deterministic random number generation by setting seed
+        v = np.random.dirichlet(np.ones(8), size=1).T
+        args = (A,b,v)
+        res = optimize.minimize(fmin,init_w,args,method='SLSQP',bounds=bnds,
+                        constraints=cons,tol=1e-10,options={'disp': False})
+        ## optimize.minimize(objective, initial guess, arguments, 'SLSPQ'=sequential least squares programming,
+        ##                   bounds, constraints, tolerance, )
+    
+        prediction_error =  RMSPE(res.x) 
+        output_vec = [prediction_error, v, res.x]
+
+        return output_vec
+    
+    iteration_3 = Parallel(n_jobs=-1)(delayed(g)(x) for x in list(range(1,n+1)))
+    # Organize output into dataframe
+    solution_frame_3 = pd.DataFrame(iteration_3)
+    solution_frame_3.columns =['Error', 'Relative Importance', 'Weights']
+
+    solution_frame_3 = solution_frame_3.sort_values(by='Error', ascending=True)
+
+    w_scipy = solution_frame_3.iloc[0][2].reshape(15,1)
+    v_scipy = solution_frame_3.iloc[0][1].T[0]
+
+    best_weights_region2 = pd.DataFrame({'Region':control_units.region.unique(), 
+                                    'W(V*)': np.round(w_scipy.ravel(), decimals=3)})
+
+    best_weights_importance2 = pd.DataFrame({'Predictors': data.columns[[3,16,11,12,13,14,26,28]],
+                                        'V*': np.round(v_scipy, 3)})
+
+    display(best_weights_importance2)
+    display(best_weights_region2)
+
+
+    y_synth_scipy = w_scipy.T @ y_control_all
+    y_synth_cvxpy = w_cvxpy.T @ y_control_all
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=list(data.year.unique()), y=y_synth_cvxpy[0],
+                    mode='lines', name='Optimizer CVXPY'))
+    fig.add_trace(go.Scatter(x=list(data.year.unique()), y=y_synth_scipy[0],
+                    mode='lines', name='Optimizer SciPY'))
+    fig.add_trace(go.Scatter(x=list(data.year.unique()), y=y_synth_pinotti[0],
+                    mode='lines', name='Pinotti'))
+    fig.add_trace(go.Scatter(x=list(data.year.unique()), y=y_treat_all[0],
+                    mode='lines', name='Treated unit'))
+    fig.add_shape(dict(type="line", x0=1960, y0=0, x1=1960, y1=11000,
+                   line=dict(color="Black", width=1)))
+
+    fig.add_trace(go.Scatter(x=[1960], y=[12000], mode="text",
+        name="Matching", text=["End of Matching<br>Period"]))
+
+    fig.update_layout(title='Figure 3.2: Synthetic Control Optimizer vs. Treated unit',
+                   xaxis_title='Time', yaxis_title='GDP per Capita')
+    fig.show()
+
+    RMSPE_values2 = [RMSPE(w_cvxpy), RMSPE(w_scipy), RMSPE(w_pinotti)]
+    method2 = ['RMSPE CVXPY','RMSPE scipy','RMSPE Pinotti']
+    RMSPE_compare2 = pd.DataFrame({'RMSE':RMSPE_values2}, index=method2)
+    display(RMSPE_compare2)
+
+#print('\nRMSPE CVXPY: {} \nRMSPE scipy: {} \nRMSPE Pinotti: {}'\
+#      .format(RMSPE(w_cvxpy),RMSPE(w_scipy),RMSPE(w_pinotti)))
